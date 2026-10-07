@@ -12,7 +12,7 @@ import { Paragraph } from "@components/Paragraph";
 import { getCurrentChannel } from "@utils/discord";
 import { IconComponent } from "@utils/types";
 import { ScrollerBaseRef } from "@vencord/discord-types";
-import { ComponentDispatch, ExpressionPickerStore, React, ScrollerThin, TextInput, useEffect, useMemo, useRef, useState } from "@webpack/common";
+import { ComponentDispatch, createScroller, ExpressionPickerStore, React, ScrollerThin, TextInput, useEffect, useMemo, useRef, useState } from "@webpack/common";
 
 import kaomojiData from "./kaomojis.json";
 import { ExpressionPickerView, KaomojiCategories } from "./types";
@@ -86,9 +86,11 @@ export function KaomojiPicker({
     }, [search, activeCategory]);
 
     const scrollerRef = useRef<ScrollerBaseRef>(null);
+    const fallbackScrollerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        scrollerRef.current?.scrollToTop();
+        if (createScroller) scrollerRef.current?.scrollToTop();
+        else if (fallbackScrollerRef.current) fallbackScrollerRef.current.scrollTop = 0;
     }, [filtered]);
 
     const handleSelect = (kaomoji: string) => {
@@ -96,6 +98,56 @@ export function KaomojiPicker({
         ExpressionPickerStore.closeExpressionPicker();
         onSelect?.(kaomoji);
     };
+
+    const kaomojiList = filtered.length > 0 ? (
+        <Grid
+            columns={1}
+            gap="8px"
+            style={{
+                width: "100%",
+                maxWidth: "100%",
+                minWidth: 0,
+                gridTemplateColumns:
+                    "repeat(auto-fit, minmax(min(115px, 100%), 1fr))",
+            }}
+        >
+            {filtered.map(({ item }, index) => (
+                <Button
+                    key={`${item.name}-${index}`}
+                    size="medium"
+                    variant="secondary"
+                    title={item.name}
+                    onClick={() => handleSelect(item.kaomoji)}
+                    style={{
+                        minWidth: 0,
+                        maxWidth: "100%",
+                        width: "100%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                    }}
+                >
+                    {item.kaomoji}
+                </Button>
+            ))}
+        </Grid>
+    ) : (
+        <Flex
+            justifyContent="center"
+            alignItems="center"
+            style={{
+                width: "100%",
+                minWidth: 0,
+                minHeight: 80,
+                padding: "16px",
+                boxSizing: "border-box",
+            }}
+        >
+            <Paragraph>
+                No kaomoji meets the search criteria.
+            </Paragraph>
+        </Flex>
+    );
 
     return (
         <Flex
@@ -112,6 +164,26 @@ export function KaomojiPicker({
                 overflow: "hidden",
             }}
         >
+            <style>{`
+                .kaomoji-picker-scrollbar::-webkit-scrollbar {
+                    width: 8px;
+                }
+
+                .kaomoji-picker-scrollbar::-webkit-scrollbar-track {
+                    background: var(--background-primary, #1e1f2e);
+                    border-radius: 8px;
+                }
+
+                .kaomoji-picker-scrollbar::-webkit-scrollbar-thumb {
+                    background: var(--background-modifier-accent, #4e5058);
+                    border: 2px solid var(--background-primary, #1e1f2e);
+                    border-radius: 8px;
+                }
+
+                .kaomoji-picker-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: var(--interactive-hover, #686b75);
+                }
+            `}</style>
             <Flex
                 style={{
                     width: "100%",
@@ -165,69 +237,42 @@ export function KaomojiPicker({
                 ))}
             </Flex>
 
-            <ScrollerThin
-                ref={scrollerRef}
-                orientation="vertical"
-                fade
-                style={{
-                    width: "100%",
-                    maxWidth: "100%",
-                    minWidth: 0,
-                    minHeight: 0,
-                    flex: "1 1 0",
-                    overflowX: "hidden",
-                }}
-            >
-                {filtered.length > 0 ? (
-                    <Grid
-                        columns={1}
-                        gap="8px"
-                        style={{
-                            width: "100%",
-                            maxWidth: "100%",
-                            minWidth: 0,
-                            gridTemplateColumns:
-                                "repeat(auto-fit, minmax(min(115px, 100%), 1fr))",
-                        }}
-                    >
-                        {filtered.map(({ item }, index) => (
-                            <Button
-                                key={`${item.name}-${index}`}
-                                size="medium"
-                                variant="secondary"
-                                title={item.name}
-                                onClick={() => handleSelect(item.kaomoji)}
-                                style={{
-                                    minWidth: 0,
-                                    maxWidth: "100%",
-                                    width: "100%",
-                                    overflow: "hidden",
-                                    textOverflow: "ellipsis",
-                                    whiteSpace: "nowrap",
-                                }}
-                            >
-                                {item.kaomoji}
-                            </Button>
-                        ))}
-                    </Grid>
-                ) : (
-                    <Flex
-                        justifyContent="center"
-                        alignItems="center"
-                        style={{
-                            width: "100%",
-                            minWidth: 0,
-                            minHeight: 80,
-                            padding: "16px",
-                            boxSizing: "border-box",
-                        }}
-                    >
-                        <Paragraph>
-                            No kaomoji meets the search criteria.
-                        </Paragraph>
-                    </Flex>
-                )}
-            </ScrollerThin>
+            {createScroller ? (
+                <ScrollerThin
+                    ref={scrollerRef}
+                    orientation="vertical"
+                    fade
+                    style={{
+                        width: "100%",
+                        maxWidth: "100%",
+                        minWidth: 0,
+                        minHeight: 0,
+                        flex: "1 1 0",
+                        overflowX: "hidden",
+                    }}
+                >
+                    {kaomojiList}
+                </ScrollerThin>
+            ) : (
+                <div
+                    ref={fallbackScrollerRef}
+                    className="kaomoji-picker-scrollbar"
+                    role="region"
+                    style={{
+                        overflowY: "auto",
+                        scrollbarWidth: "thin",
+                        scrollbarColor: "var(--background-modifier-accent, #4e5058) var(--background-primary, #1e1f2e)",
+                        width: "100%",
+                        maxWidth: "100%",
+                        minWidth: 0,
+                        minHeight: 0,
+                        flex: "1 1 0",
+                        overflowX: "hidden",
+                    }}
+                >
+                    {kaomojiList}
+                </div>
+            )}
         </Flex>
     );
 }
